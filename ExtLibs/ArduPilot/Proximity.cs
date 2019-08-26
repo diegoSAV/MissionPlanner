@@ -16,9 +16,13 @@ namespace MissionPlanner.Utilities
 
         MAVState _parent;
         directionState _dS = new directionState();
+        auxiliaryData _aX = new auxiliaryData();
         public directionState DirectionState => _dS;
+        public auxiliaryData AuxiliaryData => _aX;
 
         KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub;
+        KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub2;
+
 
         public bool DataAvailable { get; set; } = false;
 
@@ -26,6 +30,7 @@ namespace MissionPlanner.Utilities
         {
             _parent = mavInt;
             sub = mavInt.parent.SubscribeToPacketType(MAVLINK_MSG_ID.DISTANCE_SENSOR, messageReceived);
+            sub2 = mavInt.parent.SubscribeToPacketType(MAVLINK_MSG_ID.RAW_IMU, messageReceived2);
             log.InfoFormat("created for {0} - {1}", mavInt.sysid, mavInt.compid);
         }
 
@@ -53,6 +58,23 @@ namespace MissionPlanner.Utilities
                 _dS.Add(dist.id, (MAV_SENSOR_ORIENTATION)dist.orientation, dist.current_distance, DateTime.Now, 3);
 
                 DataAvailable = true;
+            }
+
+            return true;
+        }
+
+        private bool messageReceived2(MAVLinkMessage arg)
+        {
+            //accept any compid, but filter sysid
+            if (arg.sysid != _parent.sysid)
+                return true;
+
+            if (arg.msgid == (uint)MAVLINK_MSG_ID.RAW_IMU)
+            {
+                var imu = arg.ToStructure<mavlink_raw_imu_t>();
+
+                _aX.addAxx(imu.xacc);
+
             }
 
             return true;
@@ -168,6 +190,20 @@ namespace MissionPlanner.Utilities
                         }
                     }
                 }
+            }
+        }
+        public class auxiliaryData
+        {
+            private int axx;
+
+            public void addAxx(int data)
+            {
+                axx = data;
+            }
+
+            public int getAxx()
+            {
+                return axx;
             }
         }
     }
