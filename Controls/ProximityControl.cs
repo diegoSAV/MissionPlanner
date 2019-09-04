@@ -21,10 +21,15 @@ namespace MissionPlanner.Controls
 
         MAVState _parent;
         private Proximity.directionState _dS => _parent.Proximity.DirectionState;
-        private Proximity.auxiliaryData _aX => _parent.Proximity.AuxiliaryData;
        
-        KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub;
-        int imu;
+        KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_gps;
+        KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_imu;
+        KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_chan9;
+
+        private int imu;
+        private  int vel;
+        int photo;
+
 
         private Player sounder; 
         private Timer timer1;
@@ -47,9 +52,11 @@ namespace MissionPlanner.Controls
             Resize += Temp_Resize;
             FormClosing += ProximityControl_FormClosing; ;
 
-            sub = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.RAW_IMU, messageReceived);
+            sub_imu = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.RAW_IMU, MessageReceived_imu);
+            sub_gps = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.GPS_RAW_INT, MessageReceived_gps);
+            sub_chan9 = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.SERVO_OUTPUT_RAW, MessageReceived_channel9);
 
-            timer1.Interval = 100;
+            timer1.Interval = 50;
             timer1.Tick += (s, e) => { Invalidate(); };
 
             timer1.Start();
@@ -66,7 +73,7 @@ namespace MissionPlanner.Controls
             Invalidate();
         }
 
-        private bool messageReceived(MAVLinkMessage arg)
+        private bool MessageReceived_imu(MAVLinkMessage arg)
         {
             //accept any compid, but filter sysid
             if (arg.sysid != _parent.sysid)
@@ -74,8 +81,8 @@ namespace MissionPlanner.Controls
 
             if (arg.msgid == (uint)MAVLINK_MSG_ID.RAW_IMU)
             {
-                 var message = arg.ToStructure<mavlink_raw_imu_t>();
-                imu = message.xacc; 
+                var message = arg.ToStructure<mavlink_raw_imu_t>();
+                imu = message.xacc;
                 if (imu > 100)
                 {
                     if (Hit_Detected == 0)
@@ -83,15 +90,39 @@ namespace MissionPlanner.Controls
                         sounder.Play(@"C:\Users\diega\Music\test2.wav");
                         Hit_Detected = 1;
                     }
-                    
-                }
                 else if (Hit_Detected == 1)
                     Hit_Detected = 0;
-
+                }
             }
-
             return true;
         }
+
+        private bool MessageReceived_gps(MAVLinkMessage arg)
+        {
+            //accept any compid, but filter sysid
+            if (arg.sysid != _parent.sysid)
+                return true;
+            if (arg.msgid == (uint)MAVLINK_MSG_ID.SERVO_OUTPUT_RAW)
+            {
+                var message = arg.ToStructure<mavlink_servo_output_raw_t>();
+                photo  = message.servo9_raw;
+            }
+            return true;
+        }
+
+        private bool MessageReceived_channel9(MAVLinkMessage arg)
+        {
+            //accept any compid, but filter sysid
+            if (arg.sysid != _parent.sysid)
+                return true;
+            if (arg.msgid == (uint)MAVLINK_MSG_ID.GPS_RAW_INT)
+            {
+                   var message = arg.ToStructure<mavlink_servo_output_raw_t>();
+                photo = message.servo9_raw;
+            }
+            return true;
+        }
+
         private void Temp_KeyPress(object sender, KeyPressEventArgs e)
         {
             switch (e.KeyChar)
@@ -162,6 +193,7 @@ namespace MissionPlanner.Controls
                 Pen redpen = new Pen(Color.Red, 3);
                 float move = 5;
                 var font = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size+140, FontStyle.Bold);
+                var font2 = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size + 10, FontStyle.Regular);
 
                 switch (temp.Orientation)
                 {
@@ -185,7 +217,7 @@ namespace MissionPlanner.Controls
                             e.Graphics.DrawString((temp.Distance / 100).ToString("0.00"), font, System.Drawing.Brushes.Red, 0, 0);
                             chronometer.Restart();
                         }
-                       
+                        e.Graphics.DrawString(photo.ToString("0.00"), font2, System.Drawing.Brushes.Red, 400, 400);
                         break;
                     case MAV_SENSOR_ORIENTATION.MAV_SENSOR_ROTATION_YAW_45:
                         location.rotate(Rotation.ROTATION_YAW_45);
