@@ -7,7 +7,6 @@ using System.Reflection;
 using System.Diagnostics;
 using System.Windows.Forms;
 using MissionPlanner.ArduPilot;
-using NetCoreAudio;
 using static MAVLink;
 using MissionPlanner.Properties;
 using System.ComponentModel;
@@ -21,18 +20,19 @@ namespace MissionPlanner.Controls
 
         MAVState _parent;
         private Proximity.directionState _dS => _parent.Proximity.DirectionState;
-        private Proximity.auxiliaryData _aX => _parent.Proximity.AuxiliaryData;
        
-        KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub;
-        int imu;
+        KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_attitude;
 
-        private Player sounder; 
+        int yaw;
+        int desired_yaw = 0;
+
         private Timer timer1;
-        private Stopwatch chronometer;
+        private TextBox textBox1;
+        private Button button1;
+        private Button button2;
+        private Button button3;
         private IContainer components;
-        private int desired_lenght = 100;
-        private int desired_distance = 150;
-        private int Hit_Detected = 0;
+
 
         public bool DataAvailable { get; set; } = false;
 
@@ -47,7 +47,7 @@ namespace MissionPlanner.Controls
             Resize += Temp_Resize;
             FormClosing += ProximityControl_FormClosing; ;
 
-            sub = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.RAW_IMU, messageReceived);
+            sub_attitude = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.ATTITUDE, messageReceived_attitude);
 
             timer1.Interval = 100;
             timer1.Tick += (s, e) => { Invalidate(); };
@@ -58,7 +58,6 @@ namespace MissionPlanner.Controls
         private void ProximityControl_FormClosing(object sender, FormClosingEventArgs e)
         {
             timer1.Stop();
-            chronometer.Stop();
         }
 
         private void Temp_Resize(object sender, EventArgs e)
@@ -66,28 +65,16 @@ namespace MissionPlanner.Controls
             Invalidate();
         }
 
-        private bool messageReceived(MAVLinkMessage arg)
+        private bool messageReceived_attitude(MAVLinkMessage arg)
         {
             //accept any compid, but filter sysid
             if (arg.sysid != _parent.sysid)
                 return true;
 
-            if (arg.msgid == (uint)MAVLINK_MSG_ID.RAW_IMU)
+            if (arg.msgid == (uint)MAVLINK_MSG_ID.ATTITUDE)
             {
-                 var message = arg.ToStructure<mavlink_raw_imu_t>();
-                imu = message.xacc; 
-                if (imu > 100)
-                {
-                    if (Hit_Detected == 0)
-                    {
-                        sounder.Play(@"C:\Users\diega\Music\test2.wav");
-                        Hit_Detected = 1;
-                    }
-                    
-                }
-                else if (Hit_Detected == 1)
-                    Hit_Detected = 0;
-
+                var message = arg.ToStructure<mavlink_attitude_t>();
+                yaw = (int)(message.yaw * 180 / (float)3.1416);    
             }
 
             return true;
@@ -97,19 +84,20 @@ namespace MissionPlanner.Controls
             switch (e.KeyChar)
             {
                 case '+':
-                    desired_distance += 1;
+                    desired_yaw += 1;
                     e.Handled = true;
                     break;
                 case '-':
-                    desired_distance -= 1;
+                    desired_yaw -= 1;
                     e.Handled = true;
                     break;
                 case ']':
-                    desired_lenght++;
+                    desired_yaw++;
                     e.Handled = true;
                     break;
-                case '[':
-                    desired_lenght--;
+                case (char)Keys.Enter:
+                    string yaw_text = textBox1.Text;
+                    desired_yaw = Convert.ToInt32(yaw_text);
                     e.Handled = true;
                     break;
             }
@@ -136,7 +124,7 @@ namespace MissionPlanner.Controls
             var midx = e.ClipRectangle.Width / 2.0f;
             var midy = e.ClipRectangle.Height / 2.0f;
 
-            Text ="Crash at  " + (desired_distance) + " cm and sound during" + (desired_lenght) + "cm";
+            Text ="Crash at  " + (desired_yaw);
 
             // 11m radius = 22 m coverage
             var scale = ((screenradius+50) * 2) / Math.Min(Height,Width);
@@ -158,7 +146,6 @@ namespace MissionPlanner.Controls
                 var halflength = location.length() / 2.0f;
                 var doublelength = location.length() * 2.0f;
                 var length = location.length();
-                long miliseconds = chronometer.ElapsedMilliseconds;
                 Pen redpen = new Pen(Color.Red, 3);
                 float move = 5;
                 var font = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size+140, FontStyle.Bold);
@@ -167,25 +154,8 @@ namespace MissionPlanner.Controls
                 {
                     case MAV_SENSOR_ORIENTATION.MAV_SENSOR_ROTATION_NONE:
                         location.rotate(Rotation.ROTATION_NONE);
-                        if ((desired_distance + desired_lenght) < temp.Distance)
-                        {
-                            e.Graphics.DrawString((temp.Distance / 100).ToString("0.00"), font, System.Drawing.Brushes.White, 0, 0);
-                        }
-                        else if (desired_distance < temp.Distance)
-                        {
-                            if(((temp.Distance - desired_distance)*2000/desired_lenght)<miliseconds)
-                            {
-                                sounder.Play(@"C:\Users\diega\Music\test.wav");
-                                chronometer.Restart();
-                            }
-                            e.Graphics.DrawString((temp.Distance / 100).ToString("0.00"), font, System.Drawing.Brushes.Green, 0, 0);
-                        }
-                        else
-                        {
-                            e.Graphics.DrawString((temp.Distance / 100).ToString("0.00"), font, System.Drawing.Brushes.Red, 0, 0);
-                            chronometer.Restart();
-                        }
-                       
+                        e.Graphics.DrawString((temp.Distance / 100).ToString("0.00"), font, System.Drawing.Brushes.Red, 0, 0);
+                        draw_compas(e);
                         break;
                     case MAV_SENSOR_ORIENTATION.MAV_SENSOR_ROTATION_YAW_45:
                         location.rotate(Rotation.ROTATION_YAW_45);
@@ -245,7 +215,6 @@ namespace MissionPlanner.Controls
 
         public new void Dispose()
         {
-            chronometer.Stop();
             timer1.Stop();
         }
 
@@ -253,17 +222,97 @@ namespace MissionPlanner.Controls
         {
             this.components = new System.ComponentModel.Container();
             this.timer1 = new System.Windows.Forms.Timer(this.components);
-            this.chronometer = new System.Diagnostics.Stopwatch();
-            this.chronometer.Start();
+            this.textBox1 = new System.Windows.Forms.TextBox();
+            this.button1 = new System.Windows.Forms.Button();
+            this.button2 = new System.Windows.Forms.Button();
+            this.button3 = new System.Windows.Forms.Button();
             this.SuspendLayout();
-            this.sounder = new NetCoreAudio.Player(); 
+            // 
+            // textBox1
+            // 
+            this.textBox1.Location = new System.Drawing.Point(429, 12);
+            this.textBox1.Name = "textBox1";
+            this.textBox1.Size = new System.Drawing.Size(100, 20);
+            this.textBox1.TabIndex = 0;
+            this.textBox1.Text = "Introudire YAW";
+            // 
+            // button1
+            // 
+            this.button1.Location = new System.Drawing.Point(440, 38);
+            this.button1.Name = "button1";
+            this.button1.Size = new System.Drawing.Size(75, 23);
+            this.button1.TabIndex = 1;
+            this.button1.Text = "Intro Yaw";
+            this.button1.UseVisualStyleBackColor = true;
+            this.button1.Click += new System.EventHandler(this.button1_Click);
+            // 
+            // button2
+            // 
+            this.button2.Location = new System.Drawing.Point(440, 67);
+            this.button2.Name = "button2";
+            this.button2.Size = new System.Drawing.Size(75, 23);
+            this.button2.TabIndex = 2;
+            this.button2.Text = "+ 90";
+            this.button2.UseVisualStyleBackColor = true;
+            this.button2.Click += new System.EventHandler(this.button2_Click);
+            // 
+            // button3
+            // 
+            this.button3.Location = new System.Drawing.Point(440, 96);
+            this.button3.Name = "button3";
+            this.button3.Size = new System.Drawing.Size(75, 23);
+            this.button3.TabIndex = 3;
+            this.button3.Text = "- 90";
+            this.button3.UseVisualStyleBackColor = true;
+            this.button3.Click += new System.EventHandler(this.button3_Click);
             // 
             // ProximityControl
             // 
-            this.ClientSize = new System.Drawing.Size(471, 282);
+            this.ClientSize = new System.Drawing.Size(533, 481);
+            this.Controls.Add(this.button3);
+            this.Controls.Add(this.button2);
+            this.Controls.Add(this.button1);
+            this.Controls.Add(this.textBox1);
             this.Name = "ProximityControl";
             this.ResumeLayout(false);
+            this.PerformLayout();
 
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            string yaw_text = textBox1.Text;
+            desired_yaw = Convert.ToInt32(yaw_text);
+            if (desired_yaw > 360 || desired_yaw < 1)
+                desired_yaw = 0;
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            desired_yaw += 90;
+            if (desired_yaw > 360)
+                desired_yaw -= 360;
+            else if (desired_yaw < 1)
+                desired_yaw += 360;
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            desired_yaw -= 90;
+            if (desired_yaw > 360)
+                desired_yaw -= 360;
+            else if (desired_yaw < 1)
+                desired_yaw += 360;
+        }
+        private void draw_compas(PaintEventArgs e)
+        {
+            var font = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size + 15, FontStyle.Bold);
+            Pen pen = new Pen(Color.White, 3);
+            Rectangle compas = new Rectangle(10, 250, 250, 250);
+            Rectangle arrow = new Rectangle(130, 260, 10, 120);
+            e.Graphics.DrawEllipse(pen, compas);
+            e.Graphics.DrawString(desired_yaw.ToString("0"), font, System.Drawing.Brushes.Yellow, 120, 210);
+            e.Graphics.DrawImage(Resources.arrow, compas);
         }
     }
 }
