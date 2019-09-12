@@ -157,12 +157,12 @@ namespace MissionPlanner.Controls
                 Pen redpen = new Pen(Color.Red, 3);
                 float move = 5;
                 var font = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size+140, FontStyle.Bold);
+                draw_compas(e);
 
                 switch (temp.Orientation)
                 {
                     case MAV_SENSOR_ORIENTATION.MAV_SENSOR_ROTATION_NONE:
                         location.rotate(Rotation.ROTATION_NONE);
-                        draw_compas(e);
                         e.Graphics.DrawString((temp.Distance / 100).ToString("0.00"), font, System.Drawing.Brushes.White, 0, 0);
                         break;
                     case MAV_SENSOR_ORIENTATION.MAV_SENSOR_ROTATION_YAW_45:
@@ -238,15 +238,15 @@ namespace MissionPlanner.Controls
             // 
             // textBox1
             // 
-            this.textBox1.Location = new System.Drawing.Point(440, 12);
+            this.textBox1.Location = new System.Drawing.Point(529, 7);
             this.textBox1.Name = "textBox1";
-            this.textBox1.Size = new System.Drawing.Size(100, 20);
+            this.textBox1.Size = new System.Drawing.Size(100, 22);
             this.textBox1.TabIndex = 0;
             this.textBox1.Text = "Introudire YAW";
             // 
             // button1
             // 
-            this.button1.Location = new System.Drawing.Point(455, 38);
+            this.button1.Location = new System.Drawing.Point(544, 33);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(75, 23);
             this.button1.TabIndex = 1;
@@ -256,7 +256,7 @@ namespace MissionPlanner.Controls
             // 
             // button2
             // 
-            this.button2.Location = new System.Drawing.Point(455, 67);
+            this.button2.Location = new System.Drawing.Point(544, 62);
             this.button2.Name = "button2";
             this.button2.Size = new System.Drawing.Size(75, 23);
             this.button2.TabIndex = 2;
@@ -266,7 +266,7 @@ namespace MissionPlanner.Controls
             // 
             // button3
             // 
-            this.button3.Location = new System.Drawing.Point(455, 96);
+            this.button3.Location = new System.Drawing.Point(544, 91);
             this.button3.Name = "button3";
             this.button3.Size = new System.Drawing.Size(75, 23);
             this.button3.TabIndex = 3;
@@ -276,7 +276,7 @@ namespace MissionPlanner.Controls
             // 
             // ProximityControl
             // 
-            this.ClientSize = new System.Drawing.Size(542, 451);
+            this.ClientSize = new System.Drawing.Size(641, 451);
             this.Controls.Add(this.button3);
             this.Controls.Add(this.button2);
             this.Controls.Add(this.button1);
