@@ -23,16 +23,15 @@ namespace MissionPlanner.Controls
        
         KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_attitude;
         KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_gps;
+        KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_camera;
 
         int yaw;
         int desired_yaw = 0;
         float vz;
+        ushort index_photo;
+        float relative_alt;
 
         private Timer timer1;
-        private TextBox textBox1;
-        private Button button1;
-        private Button button2;
-        private Button button3;
         private IContainer components;
 
 
@@ -49,8 +48,9 @@ namespace MissionPlanner.Controls
             Resize += Temp_Resize;
             FormClosing += ProximityControl_FormClosing; ;
 
-            sub_attitude = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.ATTITUDE, messageReceived_attitude);
-            sub_gps = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.GLOBAL_POSITION_INT, messageReceived_gps);
+            sub_attitude = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.ATTITUDE, MessageReceived_attitude);
+            sub_gps = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.GLOBAL_POSITION_INT, MessageReceived_gps);
+            sub_camera = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.CAMERA_FEEDBACK, MessageReceived_camera);
 
             timer1.Interval = 100;
             timer1.Tick += (s, e) => { Invalidate(); };
@@ -68,7 +68,7 @@ namespace MissionPlanner.Controls
             Invalidate();
         }
 
-        private bool messageReceived_attitude(MAVLinkMessage arg)
+        private bool MessageReceived_attitude(MAVLinkMessage arg)
         {
             //accept any compid, but filter sysid
             if (arg.sysid != _parent.sysid)
@@ -77,12 +77,16 @@ namespace MissionPlanner.Controls
             if (arg.msgid == (uint)MAVLINK_MSG_ID.ATTITUDE)
             {
                 var message = arg.ToStructure<mavlink_attitude_t>();
-                yaw = (int)(message.yaw * 180 / Math.PI);    
+                yaw = (int)(message.yaw * 180 / Math.PI);
+                if (yaw < 1)
+                {
+                    yaw = 360 + yaw;
+                }
             }
             return true;
         }
 
-        private bool messageReceived_gps(MAVLinkMessage arg)
+        private bool MessageReceived_gps(MAVLinkMessage arg)
         {
             //accept any compid, but filter sysid
             if (arg.sysid != _parent.sysid)
@@ -91,7 +95,38 @@ namespace MissionPlanner.Controls
             if (arg.msgid == (uint)MAVLINK_MSG_ID.GLOBAL_POSITION_INT)
             {
                 var message = arg.ToStructure<mavlink_global_position_int_t>();
-                vz = (float)message.vz / (float)100.0;
+                vz = Math.Abs((float)message.vz / (float)100.0);
+            }
+            return true;
+        }
+
+        private bool MessageReceived_camera(MAVLinkMessage arg)
+        {
+            //accept any compid, but filter sysid
+            if (arg.sysid != _parent.sysid)
+                return true;
+
+            if (arg.msgid == (uint)MAVLINK_MSG_ID.CAMERA_FEEDBACK)
+            {
+              /*
+              this.time_usec = time_usec;
+              this.lat = lat;
+              this.lng = lng;
+              this.alt_msl = alt_msl;
+              this.alt_rel = alt_rel;
+              this.roll = roll;
+              this.pitch = pitch;
+              this.yaw = yaw;
+              this.foc_len = foc_len;
+              this.img_idx = img_idx;
+              this.target_system = target_system;
+              this.cam_idx = cam_idx;
+              this.flags = flags;
+              this.completed_captures = completed_captures;
+              */
+                var message = arg.ToStructure<mavlink_camera_feedback_t>();
+                index_photo = message.img_idx;
+                relative_alt = message.alt_rel;
             }
             return true;
         }
@@ -100,12 +135,24 @@ namespace MissionPlanner.Controls
         {
             switch (e.KeyChar)
             {
-                case '+':
-                    desired_yaw += 1;
+                case (char)Keys.Enter:
+                    desired_yaw = yaw;
                     e.Handled = true;
                     break;
-                case '-':
-                    desired_yaw -= 1;
+                case 'a':
+                    desired_yaw += 90;
+                    if (desired_yaw > 360)
+                        desired_yaw -= 360;
+                    else if (desired_yaw < 1)
+                        desired_yaw += 360;
+                    e.Handled = true;
+                    break;
+                case 'q':
+                    desired_yaw -= 90;
+                    if (desired_yaw > 360)
+                        desired_yaw -= 360;
+                    else if (desired_yaw < 1)
+                        desired_yaw += 360;
                     e.Handled = true;
                     break;
             }
@@ -132,8 +179,8 @@ namespace MissionPlanner.Controls
             var midx = e.ClipRectangle.Width / 2.0f;
             var midy = e.ClipRectangle.Height / 2.0f;
 
-            Text ="SupAirVision Custom Window  " + (vz);
-
+            Text ="SupAirVision Custom Window  ";
+            Draw_compas(e);
             // 11m radius = 22 m coverage
             var scale = ((screenradius+50) * 2) / Math.Min(Height,Width);
             // 80cm quad / scale
@@ -157,7 +204,6 @@ namespace MissionPlanner.Controls
                 Pen redpen = new Pen(Color.Red, 3);
                 float move = 5;
                 var font = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size+140, FontStyle.Bold);
-                draw_compas(e);
 
                 switch (temp.Orientation)
                 {
@@ -230,91 +276,19 @@ namespace MissionPlanner.Controls
         {
             this.components = new System.ComponentModel.Container();
             this.timer1 = new System.Windows.Forms.Timer(this.components);
-            this.textBox1 = new System.Windows.Forms.TextBox();
-            this.button1 = new System.Windows.Forms.Button();
-            this.button2 = new System.Windows.Forms.Button();
-            this.button3 = new System.Windows.Forms.Button();
             this.SuspendLayout();
-            // 
-            // textBox1
-            // 
-            this.textBox1.Location = new System.Drawing.Point(529, 7);
-            this.textBox1.Name = "textBox1";
-            this.textBox1.Size = new System.Drawing.Size(100, 22);
-            this.textBox1.TabIndex = 0;
-            this.textBox1.Text = "Introudire YAW";
-            // 
-            // button1
-            // 
-            this.button1.Location = new System.Drawing.Point(544, 33);
-            this.button1.Name = "button1";
-            this.button1.Size = new System.Drawing.Size(75, 23);
-            this.button1.TabIndex = 1;
-            this.button1.Text = "Intro Yaw";
-            this.button1.UseVisualStyleBackColor = true;
-            this.button1.Click += new System.EventHandler(this.button1_Click);
-            // 
-            // button2
-            // 
-            this.button2.Location = new System.Drawing.Point(544, 62);
-            this.button2.Name = "button2";
-            this.button2.Size = new System.Drawing.Size(75, 23);
-            this.button2.TabIndex = 2;
-            this.button2.Text = "+ 90";
-            this.button2.UseVisualStyleBackColor = true;
-            this.button2.Click += new System.EventHandler(this.button2_Click);
-            // 
-            // button3
-            // 
-            this.button3.Location = new System.Drawing.Point(544, 91);
-            this.button3.Name = "button3";
-            this.button3.Size = new System.Drawing.Size(75, 23);
-            this.button3.TabIndex = 3;
-            this.button3.Text = "- 90";
-            this.button3.UseVisualStyleBackColor = true;
-            this.button3.Click += new System.EventHandler(this.button3_Click);
             // 
             // ProximityControl
             // 
-            this.ClientSize = new System.Drawing.Size(641, 451);
-            this.Controls.Add(this.button3);
-            this.Controls.Add(this.button2);
-            this.Controls.Add(this.button1);
-            this.Controls.Add(this.textBox1);
+            this.ClientSize = new System.Drawing.Size(584, 455);
             this.Name = "ProximityControl";
             this.ResumeLayout(false);
-            this.PerformLayout();
 
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private void Draw_compas(PaintEventArgs e)
         {
-            string yaw_text = textBox1.Text;
-            desired_yaw = Convert.ToInt32(yaw_text);
-            if (desired_yaw > 360 || desired_yaw < 1)
-                desired_yaw = 0;
-        }
-
-        private void button2_Click(object sender, EventArgs e)
-        {
-            desired_yaw += 90;
-            if (desired_yaw > 360)
-                desired_yaw -= 360;
-            else if (desired_yaw < 1)
-                desired_yaw += 360;
-        }
-
-        private void button3_Click(object sender, EventArgs e)
-        {
-            desired_yaw -= 90;
-            if (desired_yaw > 360)
-                desired_yaw -= 360;
-            else if (desired_yaw < 1)
-                desired_yaw += 360;
-        }
-        private void draw_compas(PaintEventArgs e)
-        {
-            var font = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size + 15, FontStyle.Bold);
+            var font = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size + 30, FontStyle.Bold);
             var font2 = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size + 70, FontStyle.Bold);
             var font3 = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size + 30, FontStyle.Bold);
             var brush = new SolidBrush(Color.White);
@@ -342,7 +316,7 @@ namespace MissionPlanner.Controls
             if (difference_yaw < 0)
                 pos_x -= 25;
 
-            e.Graphics.DrawString(desired_yaw.ToString("0"), font, System.Drawing.Brushes.Green, 470, 120);
+            e.Graphics.DrawString(desired_yaw.ToString("0"), font, System.Drawing.Brushes.White, 75, 410);
 
             if(Math.Abs(difference_yaw) > 15)
                 e.Graphics.DrawString(difference_yaw.ToString("0"), font2, System.Drawing.Brushes.Red, pos_x, pos_y);
@@ -377,6 +351,8 @@ namespace MissionPlanner.Controls
             e.Graphics.FillRectangle(brush, 133, 240, 3, 20);
             e.Graphics.DrawArc(pen3, compas, 255, 30);
             e.Graphics.DrawArc(pen2, compas, 265, 10);
+
+            e.Graphics.DrawString(index_photo.ToString(), font, System.Drawing.Brushes.Red, 500, 10);
         }
     }
 }
