@@ -6,16 +6,19 @@ using System.Linq;
 using System.Reflection;
 using System.Diagnostics;
 using System.Windows.Forms;
+using System.IO;
 using MissionPlanner.ArduPilot;
 using static MAVLink;
 using MissionPlanner.Properties;
 using System.ComponentModel;
 using MissionPlanner.Utilities;
+using CsvHelper;
 
 namespace MissionPlanner.Controls
 {
     public class ProximityControl : Form
     {
+
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         MAVState _parent;
@@ -25,15 +28,18 @@ namespace MissionPlanner.Controls
         KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_gps;
         KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_camera;
 
-        int yaw;
+        int drone_yaw;
         int desired_yaw = 0;
+        bool is_log_created = false;
+        string log_name;
+        float drone_rel_alt;
+        float last_photo_alt;
         float vz;
-        ushort index_photo;
-        float relative_alt;
+
+        List<ImagesLog> images_list = new List<ImagesLog>();
 
         private Timer timer1;
         private IContainer components;
-
 
         public bool DataAvailable { get; set; } = false;
 
@@ -50,9 +56,7 @@ namespace MissionPlanner.Controls
 
             sub_attitude = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.ATTITUDE, MessageReceived_attitude);
             sub_gps = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.GLOBAL_POSITION_INT, MessageReceived_gps);
-
             sub_camera = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.CAMERA_FEEDBACK, MessageReceived_camera);
-
 
             timer1.Interval = 100;
             timer1.Tick += (s, e) => { Invalidate(); };
@@ -79,10 +83,10 @@ namespace MissionPlanner.Controls
             if (arg.msgid == (uint)MAVLINK_MSG_ID.ATTITUDE)
             {
                 var message = arg.ToStructure<mavlink_attitude_t>();
-                yaw = (int)(message.yaw * 180 / Math.PI);
-                if (yaw < 1)
+                drone_yaw = (int)(message.yaw * 180 / Math.PI);
+                if (drone_yaw < 1)
                 {
-                    yaw = 360 + yaw;
+                    drone_yaw = 360 + drone_yaw;
                 }
             }
             return true;
@@ -98,6 +102,7 @@ namespace MissionPlanner.Controls
             {
                 var message = arg.ToStructure<mavlink_global_position_int_t>();
                 vz = Math.Abs((float)message.vz / (float)100.0);
+                drone_rel_alt = (float) message.relative_alt/1000;
             }
             return true;
         }
@@ -110,25 +115,22 @@ namespace MissionPlanner.Controls
 
             if (arg.msgid == (uint)MAVLINK_MSG_ID.CAMERA_FEEDBACK)
             {
-              /*
-              this.time_usec = time_usec;
-              this.lat = lat;
-              this.lng = lng;
-              this.alt_msl = alt_msl;
-              this.alt_rel = alt_rel;
-              this.roll = roll;
-              this.pitch = pitch;
-              this.yaw = yaw;
-              this.foc_len = foc_len;
-              this.img_idx = img_idx;
-              this.target_system = target_system;
-              this.cam_idx = cam_idx;
-              this.flags = flags;
-              this.completed_captures = completed_captures;
-              */
-                var message = arg.ToStructure<mavlink_camera_feedback_t>();
-                index_photo = message.img_idx;
-                relative_alt = message.alt_rel;
+                images_list.Add(new ImagesLog(arg));
+                if(is_log_created == false)
+                {
+
+                    DateTime time = DateTime.Now;
+                    //log_name = time.ToString("yyyMMdd-HHmmss");
+                    log_name = time.ToString("yyyMMdd-HHmmss");
+                    log_name = log_name + ".csv";
+                    is_log_created = true;
+                }
+                using (var reader = new StreamWriter(log_name))
+                using (var csv = new CsvWriter(reader))
+                {
+                    csv.WriteRecords(images_list);
+                }
+                last_photo_alt = images_list[images_list.Count - 1].alt_rel;
             }
             return true;
         }
@@ -138,7 +140,7 @@ namespace MissionPlanner.Controls
             switch (e.KeyChar)
             {
                 case (char)Keys.Enter:
-                    desired_yaw = yaw;
+                    desired_yaw = drone_yaw;
                     e.Handled = true;
                     break;
                 case 'a':
@@ -282,9 +284,7 @@ namespace MissionPlanner.Controls
             // 
             // ProximityControl
             // 
-
             this.ClientSize = new System.Drawing.Size(584, 455);
-
             this.Name = "ProximityControl";
             this.ResumeLayout(false);
 
@@ -306,7 +306,7 @@ namespace MissionPlanner.Controls
 
             e.Graphics.DrawEllipse(pen, compas);
 
-            int difference_yaw = desired_yaw - yaw;
+            int difference_yaw = desired_yaw - drone_yaw;
             if (difference_yaw > 180)
                 difference_yaw = (360 - difference_yaw) * (-1);
             else if (difference_yaw < -179)
@@ -344,11 +344,11 @@ namespace MissionPlanner.Controls
             double circle_x = 135 + (110 * Math.Sin((double)difference_yaw * Math.PI / 180));
             double circle_y = 375 - (110 * Math.Cos((double)difference_yaw * Math.PI / 180));
             Point point_a = new Point((int)circle_x, (int)circle_y);
-            double circle_x2 = 135 + (90 * Math.Sin((double)(difference_yaw - 4) * Math.PI / 180));
-            double circle_y2 = 375 - (90 * Math.Cos((double)(difference_yaw - 4) * Math.PI / 180));
+            double circle_x2 = 135 + (85 * Math.Sin((double)(difference_yaw - 4) * Math.PI / 180));
+            double circle_y2 = 375 - (85 * Math.Cos((double)(difference_yaw - 4) * Math.PI / 180));
             Point point_b = new Point((int)circle_x2, (int)circle_y2);
-            double circle_x3 = 135 + (90 * Math.Sin((double)(difference_yaw + 4) * Math.PI / 180));
-            double circle_y3 = 375 - (90 * Math.Cos((double)(difference_yaw + 4) * Math.PI / 180));
+            double circle_x3 = 135 + (85 * Math.Sin((double)(difference_yaw + 4) * Math.PI / 180));
+            double circle_y3 = 375 - (85 * Math.Cos((double)(difference_yaw + 4) * Math.PI / 180));
             Point point_c = new Point((int)circle_x3, (int)circle_y3);
             Point[] triangle = { point_a, point_b, point_c };
             e.Graphics.FillPolygon(brush, triangle);
@@ -356,7 +356,36 @@ namespace MissionPlanner.Controls
             e.Graphics.DrawArc(pen3, compas, 255, 30);
             e.Graphics.DrawArc(pen2, compas, 265, 10);
 
-            e.Graphics.DrawString(index_photo.ToString(), font, System.Drawing.Brushes.Red, 500, 10);
+            e.Graphics.DrawString((drone_rel_alt - last_photo_alt).ToString("0.0"), font, System.Drawing.Brushes.White, 418, 60);
+
+        }
+    }
+
+    public class ImagesLog 
+    {
+        public ulong time_usec { get; set; }
+        public int lat { get; set; }
+        public int lng { get; set; }
+        public float alt_msl { get; set; }
+        public float alt_rel { get; set; }
+        public float roll { get; set; }
+        public float pitch { get; set; }
+        public float yaw { get; set; }
+        public ushort img_idx { get; set; }
+
+
+        public  ImagesLog(MAVLinkMessage arg)
+        {
+            var message = arg.ToStructure<mavlink_camera_feedback_t>();
+            time_usec = message.time_usec;
+            lat = message.lat;
+            lng = message.lng;
+            alt_msl = message.alt_msl;
+            alt_rel = message.alt_rel;
+            roll = message.roll;
+            pitch = message.pitch;
+            yaw = message.yaw;
+            img_idx = message.img_idx;     
         }
     }
 }
