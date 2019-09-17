@@ -50,7 +50,9 @@ namespace MissionPlanner.Controls
 
             sub_attitude = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.ATTITUDE, MessageReceived_attitude);
             sub_gps = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.GLOBAL_POSITION_INT, MessageReceived_gps);
+
             sub_camera = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.CAMERA_FEEDBACK, MessageReceived_camera);
+
 
             timer1.Interval = 100;
             timer1.Tick += (s, e) => { Invalidate(); };
@@ -280,7 +282,9 @@ namespace MissionPlanner.Controls
             // 
             // ProximityControl
             // 
+
             this.ClientSize = new System.Drawing.Size(584, 455);
+
             this.Name = "ProximityControl";
             this.ResumeLayout(false);
 
