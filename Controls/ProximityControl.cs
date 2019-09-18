@@ -8,7 +8,7 @@ using System.Diagnostics;
 using System.Windows.Forms;
 using System.IO;
 using MissionPlanner.ArduPilot;
-using static MAVLink;
+using static MAVLink; 
 using MissionPlanner.Properties;
 using System.ComponentModel;
 using MissionPlanner.Utilities;
@@ -23,7 +23,7 @@ namespace MissionPlanner.Controls
 
         MAVState _parent;
         private Proximity.directionState _dS => _parent.Proximity.DirectionState;
-       
+
         KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_attitude;
         KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_gps;
         KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_camera;
@@ -57,7 +57,6 @@ namespace MissionPlanner.Controls
             sub_attitude = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.ATTITUDE, MessageReceived_attitude);
             sub_gps = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.GLOBAL_POSITION_INT, MessageReceived_gps);
             sub_camera = state.parent.SubscribeToPacketType(MAVLINK_MSG_ID.CAMERA_FEEDBACK, MessageReceived_camera);
-
             timer1.Interval = 100;
             timer1.Tick += (s, e) => { Invalidate(); };
 
@@ -102,7 +101,7 @@ namespace MissionPlanner.Controls
             {
                 var message = arg.ToStructure<mavlink_global_position_int_t>();
                 vz = Math.Abs((float)message.vz / (float)100.0);
-                drone_rel_alt = (float) message.relative_alt/1000;
+                drone_rel_alt = (float)message.relative_alt / 1000;
             }
             return true;
         }
@@ -116,7 +115,7 @@ namespace MissionPlanner.Controls
             if (arg.msgid == (uint)MAVLINK_MSG_ID.CAMERA_FEEDBACK)
             {
                 images_list.Add(new ImagesLog(arg));
-                if(is_log_created == false)
+                if (is_log_created == false)
                 {
 
                     DateTime time = DateTime.Now;
@@ -130,7 +129,7 @@ namespace MissionPlanner.Controls
                 {
                     csv.WriteRecords(images_list);
                 }
-                last_photo_alt = images_list[images_list.Count - 1].alt_rel;
+                last_photo_alt = drone_rel_alt;
             }
             return true;
         }
@@ -157,6 +156,30 @@ namespace MissionPlanner.Controls
                         desired_yaw -= 360;
                     else if (desired_yaw < 1)
                         desired_yaw += 360;
+                    e.Handled = true;
+                    break;
+                case 'z':
+                    desired_yaw += 1;
+                    if (desired_yaw > 360)
+                        desired_yaw -= 360;
+                    else if (desired_yaw < 1)
+                        desired_yaw += 360;
+                    e.Handled = true;
+                    break;
+                case 's':
+                    desired_yaw -= 1;
+                    if (desired_yaw > 360)
+                        desired_yaw -= 360;
+                    else if (desired_yaw < 1)
+                        desired_yaw += 360;
+                    e.Handled = true;
+                    break;
+                case 'p':
+                    _parent.parent.doCommand(MAV_CMD.DO_DIGICAM_CONTROL, 0, 0, 0, 0, 1, 0, 0); 
+                    e.Handled = true;
+                    break;
+                case 'h':
+                   // _parent.addPacket(SET_HOME_POSITION, _parent.sysid, 0, 0, 0, 1, 0, 0);
                     e.Handled = true;
                     break;
             }
