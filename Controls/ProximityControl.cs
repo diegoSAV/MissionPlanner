@@ -13,6 +13,7 @@ using MissionPlanner.Properties;
 using System.ComponentModel;
 using MissionPlanner.Utilities;
 using CsvHelper;
+using NetCoreAudio;
 
 namespace MissionPlanner.Controls
 {
@@ -28,6 +29,9 @@ namespace MissionPlanner.Controls
         KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_gps;
         KeyValuePair<MAVLINK_MSG_ID, Func<MAVLinkMessage, bool>> sub_camera;
 
+        private Player Sounder;
+        string Sound_path;
+
         int drone_yaw;
         int desired_yaw = 0;
         bool is_log_created = false;
@@ -35,6 +39,7 @@ namespace MissionPlanner.Controls
         float drone_rel_alt;
         float last_photo_alt;
         float vz;
+        double proximity_sensor;
 
         List<ImagesLog> images_list = new List<ImagesLog>();
 
@@ -114,7 +119,9 @@ namespace MissionPlanner.Controls
 
             if (arg.msgid == (uint)MAVLINK_MSG_ID.CAMERA_FEEDBACK)
             {
-                images_list.Add(new ImagesLog(arg));
+            
+                Sounder.Play(Sound_path);
+                images_list.Add(new ImagesLog(arg, proximity_sensor));
                 if (is_log_created == false)
                 {
 
@@ -236,7 +243,8 @@ namespace MissionPlanner.Controls
                 {
                     case MAV_SENSOR_ORIENTATION.MAV_SENSOR_ROTATION_NONE:
                         location.rotate(Rotation.ROTATION_NONE);
-                        e.Graphics.DrawString((temp.Distance / 100).ToString("0.00"), font, System.Drawing.Brushes.White, 0, 0);
+                        e.Graphics.DrawString((temp.Distance / 100).ToString("0.0"), font, System.Drawing.Brushes.White, 0, 0);
+                        proximity_sensor = temp.Distance;
                         break;
                     case MAV_SENSOR_ORIENTATION.MAV_SENSOR_ROTATION_YAW_45:
                         location.rotate(Rotation.ROTATION_YAW_45);
@@ -303,6 +311,7 @@ namespace MissionPlanner.Controls
         {
             this.components = new System.ComponentModel.Container();
             this.timer1 = new System.Windows.Forms.Timer(this.components);
+            this.Sounder = new NetCoreAudio.Player();
             this.SuspendLayout();
             // 
             // ProximityControl
@@ -310,6 +319,12 @@ namespace MissionPlanner.Controls
             this.ClientSize = new System.Drawing.Size(584, 455);
             this.Name = "ProximityControl";
             this.ResumeLayout(false);
+
+            Sound_path = Directory.GetCurrentDirectory();
+            Sound_path = Directory.GetParent(Sound_path).FullName;
+            Sound_path = Directory.GetParent(Sound_path).FullName;
+            Sound_path = Directory.GetParent(Sound_path).FullName;
+            Sound_path = Sound_path + @"\Resources\Camera.wav";
 
         }
 
@@ -379,8 +394,7 @@ namespace MissionPlanner.Controls
             e.Graphics.DrawArc(pen3, compas, 255, 30);
             e.Graphics.DrawArc(pen2, compas, 265, 10);
 
-            e.Graphics.DrawString((drone_rel_alt - last_photo_alt).ToString("0.0"), font, System.Drawing.Brushes.White, 418, 60);
-
+            e.Graphics.DrawString((drone_rel_alt - last_photo_alt).ToString("0.0m"), font, System.Drawing.Brushes.White, 418, 60);
         }
     }
 
@@ -395,9 +409,10 @@ namespace MissionPlanner.Controls
         public float pitch { get; set; }
         public float yaw { get; set; }
         public ushort img_idx { get; set; }
+        public double prx_sensor { get; set; }
 
 
-        public  ImagesLog(MAVLinkMessage arg)
+        public  ImagesLog(MAVLinkMessage arg, double proximity_sensor)
         {
             var message = arg.ToStructure<mavlink_camera_feedback_t>();
             time_usec = message.time_usec;
@@ -408,7 +423,8 @@ namespace MissionPlanner.Controls
             roll = message.roll;
             pitch = message.pitch;
             yaw = message.yaw;
-            img_idx = message.img_idx;     
+            img_idx = message.img_idx;
+            prx_sensor = proximity_sensor;
         }
     }
 }
