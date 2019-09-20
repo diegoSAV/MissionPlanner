@@ -38,6 +38,8 @@ namespace MissionPlanner.Controls
         string log_name;
         float drone_rel_alt;
         float last_photo_alt;
+        int photo_count = 0;
+        int side_photo_count = 0;
         float vz;
         double proximity_sensor;
 
@@ -121,12 +123,13 @@ namespace MissionPlanner.Controls
             {
             
                 Sounder.Play(Sound_path);
+                photo_count++;
+                side_photo_count++;
                 images_list.Add(new ImagesLog(arg, proximity_sensor));
                 if (is_log_created == false)
                 {
 
                     DateTime time = DateTime.Now;
-                    //log_name = time.ToString("yyyMMdd-HHmmss");
                     log_name = time.ToString("yyyMMdd-HHmmss");
                     log_name = log_name + ".csv";
                     is_log_created = true;
@@ -147,6 +150,7 @@ namespace MissionPlanner.Controls
             {
                 case (char)Keys.Enter:
                     desired_yaw = drone_yaw;
+                    side_photo_count = 0;
                     e.Handled = true;
                     break;
                 case 'a':
@@ -183,10 +187,6 @@ namespace MissionPlanner.Controls
                     break;
                 case 'p':
                     _parent.parent.doCommand(MAV_CMD.DO_DIGICAM_CONTROL, 0, 0, 0, 0, 1, 0, 0); 
-                    e.Handled = true;
-                    break;
-                case 'h':
-                   // _parent.addPacket(SET_HOME_POSITION, _parent.sysid, 0, 0, 0, 1, 0, 0);
                     e.Handled = true;
                     break;
             }
@@ -238,12 +238,16 @@ namespace MissionPlanner.Controls
                 Pen redpen = new Pen(Color.Red, 3);
                 float move = 5;
                 var font = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size+140, FontStyle.Bold);
+                var font2 = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size + 80, FontStyle.Bold);
 
                 switch (temp.Orientation)
                 {
                     case MAV_SENSOR_ORIENTATION.MAV_SENSOR_ROTATION_NONE:
                         location.rotate(Rotation.ROTATION_NONE);
-                        e.Graphics.DrawString((temp.Distance / 100).ToString("0.0"), font, System.Drawing.Brushes.White, 0, 0);
+                        if(temp.Distance > 999)
+                            e.Graphics.DrawString((temp.Distance / 100).ToString("0.0"), font2, System.Drawing.Brushes.White, 0, 0);
+                        else
+                            e.Graphics.DrawString((temp.Distance / 100).ToString("0.0"), font, System.Drawing.Brushes.White, 0, 0);
                         proximity_sensor = temp.Distance;
                         break;
                     case MAV_SENSOR_ORIENTATION.MAV_SENSOR_ROTATION_YAW_45:
@@ -333,6 +337,7 @@ namespace MissionPlanner.Controls
             var font = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size + 30, FontStyle.Bold);
             var font2 = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size + 70, FontStyle.Bold);
             var font3 = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size + 30, FontStyle.Bold);
+            var font4 = new Font(SystemFonts.DefaultFont.FontFamily, SystemFonts.DefaultFont.Size + 15, FontStyle.Bold);
             var brush = new SolidBrush(Color.White);
             var brush2 = new SolidBrush(Color.Green);
             int pos_y = 310;
@@ -368,25 +373,25 @@ namespace MissionPlanner.Controls
 
             if (vz > 1)
             {
-                e.Graphics.DrawString("Speed", font3, System.Drawing.Brushes.Red, 300, 240);
-                e.Graphics.DrawString("Warning", font3, System.Drawing.Brushes.Red, 280, 300);
-                e.Graphics.DrawString(vz.ToString("0.00"), font3, System.Drawing.Brushes.Red, 330, 360);
+                e.Graphics.DrawString("Speed", font3, System.Drawing.Brushes.Red, 330, 240);
+                e.Graphics.DrawString("Warning", font3, System.Drawing.Brushes.Red, 310, 300);
+                e.Graphics.DrawString(vz.ToString("0.00"), font3, System.Drawing.Brushes.Red, 360, 360);
             }
             else if (vz >0.6)
             {
-                e.Graphics.DrawString("Speed", font3, System.Drawing.Brushes.Yellow, 300, 240);
-                e.Graphics.DrawString("Warning", font3, System.Drawing.Brushes.Yellow, 280, 300);
-                e.Graphics.DrawString(vz.ToString("0.00"), font3, System.Drawing.Brushes.Yellow, 330, 360);
+                e.Graphics.DrawString("Speed", font3, System.Drawing.Brushes.Yellow, 330, 240);
+                e.Graphics.DrawString("Warning", font3, System.Drawing.Brushes.Yellow, 310, 300);
+                e.Graphics.DrawString(vz.ToString("0.00"), font3, System.Drawing.Brushes.Yellow, 360, 360);
             }
 
-            double circle_x = 135 + (110 * Math.Sin((double)difference_yaw * Math.PI / 180));
-            double circle_y = 375 - (110 * Math.Cos((double)difference_yaw * Math.PI / 180));
+            double circle_x = 135 + (114 * Math.Sin((double)difference_yaw * Math.PI / 180));
+            double circle_y = 375 - (114 * Math.Cos((double)difference_yaw * Math.PI / 180));
             Point point_a = new Point((int)circle_x, (int)circle_y);
-            double circle_x2 = 135 + (85 * Math.Sin((double)(difference_yaw - 4) * Math.PI / 180));
-            double circle_y2 = 375 - (85 * Math.Cos((double)(difference_yaw - 4) * Math.PI / 180));
+            double circle_x2 = 135 + (85 * Math.Sin((double)(difference_yaw - 5) * Math.PI / 180));
+            double circle_y2 = 375 - (85 * Math.Cos((double)(difference_yaw - 5) * Math.PI / 180));
             Point point_b = new Point((int)circle_x2, (int)circle_y2);
-            double circle_x3 = 135 + (85 * Math.Sin((double)(difference_yaw + 4) * Math.PI / 180));
-            double circle_y3 = 375 - (85 * Math.Cos((double)(difference_yaw + 4) * Math.PI / 180));
+            double circle_x3 = 135 + (85 * Math.Sin((double)(difference_yaw + 5) * Math.PI / 180));
+            double circle_y3 = 375 - (85 * Math.Cos((double)(difference_yaw + 5) * Math.PI / 180));
             Point point_c = new Point((int)circle_x3, (int)circle_y3);
             Point[] triangle = { point_a, point_b, point_c };
             e.Graphics.FillPolygon(brush, triangle);
@@ -394,7 +399,13 @@ namespace MissionPlanner.Controls
             e.Graphics.DrawArc(pen3, compas, 255, 30);
             e.Graphics.DrawArc(pen2, compas, 265, 10);
 
-            e.Graphics.DrawString((drone_rel_alt - last_photo_alt).ToString("0.0m"), font, System.Drawing.Brushes.White, 418, 60);
+            e.Graphics.DrawString("Hauteur :", font4, System.Drawing.Brushes.White, 460, 40);
+            e.Graphics.DrawString((drone_rel_alt - last_photo_alt).ToString("0.0m"), font, System.Drawing.Brushes.White, 620, 32);
+            e.Graphics.DrawString("Photo Count :", font4, System.Drawing.Brushes.White, 460, 90);
+            e.Graphics.DrawString(photo_count.ToString(), font, System.Drawing.Brushes.White, 670, 85);
+            e.Graphics.DrawString("Side photo :", font4, System.Drawing.Brushes.White, 460, 140);
+            e.Graphics.DrawString(side_photo_count.ToString(), font, System.Drawing.Brushes.White, 670, 135);
+
         }
     }
 
