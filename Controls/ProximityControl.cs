@@ -316,7 +316,7 @@ namespace MissionPlanner.Controls
             // 
             // ProximityControl
             // 
-            this.ClientSize = new System.Drawing.Size(584, 455);
+            this.ClientSize = new System.Drawing.Size(900, 500);
             this.Name = "ProximityControl";
             this.ResumeLayout(false);
 
